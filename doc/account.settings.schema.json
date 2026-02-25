@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JEMAIL Account Settings",
+  "description": "Schema for validating and documenting JEMAIL account settings YAML files.",
+  "type": "object",
+  "properties": {
+      "name": {
+        "type": "string",
+        "description": "Display name for the account."
+      },
+      "email": {
+        "type": "string",
+        "format": "email",
+        "description": "Email address associated with the account."
+      },
+      "folders": {
+        "type": "array",
+        "description": "List of mail folders to sync. ALL if absent",
+        "items": {
+          "type": "string"
+        }
+      },
+      "backup-smb": {
+        "type": "object",
+        "description": "SMB backup settings.",
+        "properties": {
+          "host": { "type": "string", "format": "hostname", "description": "SMB server hostname." },
+          "path": { "type": "string", "description": "SMB Folder path." },
+          "domain": { "type": "string", "description": "SMB login domain." },
+          "username": { "type": "string", "description": "SMB login username." },
+          "password": { "type": "string", "description": "SMB login password in obfuscated form. Use 'rclone obscure <plain_password>' to obfuscate." }
+        },
+        "required": ["host", "path", "domain", "username", "password"]
+      },
+      "imap": {
+        "type": "object",
+        "description": "IMAP server settings.",
+        "properties": {
+          "authentication": { "type": "string", "enum": ["Basic", "MsOAuth2"], "description": "IMAP access method. 'Basic' for traditional credentials, 'MSOAuth2' for Microsoft OAuth2." },
+          "host": { "type": "string", "format": "hostname", "description": "IMAP server hostname." },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "IMAP server port." },
+          "username": { "type": "string", "description": "IMAP login username." },
+          "password": { "type": "string", "description": "IMAP login password." },
+          "use_tls": { "type": "boolean", "description": "Whether to use TLS for IMAP." },
+          "discord": {
+            "type": "object",
+            "description": "Information on the user to prompt for authentication when needed.",
+            "properties": {
+              "channel_id": {
+                "type": "integer",
+                "description": "Discord channel ID where the bot should communicate with the user."
+              },
+              "user_id": {
+                "type": "integer",
+                "description": "Discord user ID to prompt with a @mention."
+                }
+             },
+             "required": ["channel_id", "user_id"]
+          }
+        },
+        "oneOf": [
+          {
+          "properties": {
+            "authentication": { "const": "Basic" }
+          },
+          "required": ["host", "username", "password", "use_tls"],
+          "not": {"required": ["discord"]}
+          },
+          {
+          "properties": {
+            "authentication": { "const": "MsOAuth2" }
+          },
+          "required": ["host", "discord"],
+          "not": {"required": ["username", "password", "use_tls"]}
+          }
+        ],
+        "required": ["authentication"]
+      }
+    },
+    "required": ["name", "email"],
+    "oneOf": [
+      { "required": ["imap"] }
+    ]
+}

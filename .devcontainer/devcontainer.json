@@ -1,0 +1,28 @@
+{
+  "name": "jemail-dev",
+  "build": {
+    "dockerfile": "../build/Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/root/jemail/external/jemail",
+  "workspaceMount": "source=${localWorkspaceFolder}/../..,target=/root/jemail,type=bind,consistency=consistent",
+  "mounts": [
+    "source=${localEnv:HOME}/.local/share/jemail,target=/var/lib/jemail,type=bind,consistency=consistent",
+    "source=${localEnv:SOPS_AGE_KEY_FILE},target=/root/.sops/age.txt,type=bind,consistency=cached"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "signageos.signageos-vscode-sops",
+        "EditorConfig.EditorConfig",
+        "mhutchie.git-graph",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-preview-github-styles",
+        "foxundermoon.shell-format",
+        "timonwong.shellcheck"
+      ]
+    }
+  },
+  "postStartCommand": "bash tool/entrypoint-dev"
+}

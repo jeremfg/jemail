@@ -1,0 +1,63 @@
+[project]
+name = "jemail"
+version = "0.1.0"
+description = "Interactive terminal-based email management tool"
+requires-python = ">=3.9"
+dependencies = [
+  "discord.py==2.6.4",
+  "imap-tools==1.11.1",
+  "jsonschema==4.26.0",
+  "o365==2.1.9",
+  "PyYAML==6.0.3",
+  "pathvalidate==3.3.1",
+  "rich==14.3.2",
+  "textual==8.0.0"
+]
+
+[project.scripts]
+jemail = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["src"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v"
+
+[tool.ruff]
+lint.select = [
+  "ALL",
+]
+lint.ignore = [
+  "ANN401",  # Allow Any for early stubs
+  "ARG001",  # Unused function arguments (ok for stubs)
+  "COM812",  # Conflicts with formatter
+  "D203",    # one-blank-line-before-class (conflicts with D204)
+  "D213",    # multi-line-summary-second-line
+  "E501",    # line-too-long (handled by black)
+  "ERA001",  # Commented code (docstrings have lists)
+  "FIX002",  # Line contains TODO (too noisy)
+  "G004",    # f-string in logging (acceptable for now)
+  "S607",    # Partial executable path (semver lookup is intentional)
+  "TD002",   # TODO author (noisy for stubs)
+  "TD003",   # TODO issue link (noisy for stubs)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test/*.py" = ["S101"]
+
+[tool.mypy]
+mypy_path = "src"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.bandit]
+skips = []
+
+[tool.codespell]

@@ -1,0 +1,118 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=512']
+      - id: check-ast  # Python
+      - id: check-case-conflict
+      - id: check-docstring-first  # Python
+      - id: check-executables-have-shebangs  # Shell
+      - id: check-shebang-scripts-are-executable  # Shell
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-yaml  # YAML
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: forbid-new-submodules
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: requirements-txt-fixer  # Python
+      - id: sort-simple-yaml  # YAML
+      - id: trailing-whitespace
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.10.0-2
+    hooks:
+      - id: shfmt  # Shell
+        args: [-i, '2', -w]
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      - id: shellcheck  # Shell
+        args: [--enable, all, -x]
+      - id: git-check
+      - id: git-dirty
+      - id: script-must-have-extension  # Shell
+        types: [shell, non-executable]
+      - id: script-must-not-have-extension  # Shell
+        types: [shell, executable]
+      - id: forbid-binary
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint  # Markdown
+        args: ["--fix"]
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.1
+    hooks:
+      - id: pyupgrade  # Python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      - id: ruff-check  # Python
+        args: ["--fix"]
+      - id: ruff-format  # Python
+  - repo: https://github.com/psf/black
+    rev: 26.1.0
+    hooks:
+      - id: black  # Python
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy  # Python
+        pass_filenames: false
+        args: ["--strict", "-p", "jemail"]
+        additional_dependencies:
+          - types-PyYAML==6.0.12.20250915
+          - types-jsonschema==4.26.0.20260202
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.3
+    hooks:
+      - id: bandit  # Python
+        args: ["-x", "test/", "-s", "B101"]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.4
+    hooks:
+      - id: forbid-crlf
+      - id: forbid-tabs
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.35.1
+    hooks:
+      - id: yamllint  # YAML
+        args: [--strict]
+        exclude: ^data/(accounts/hotmail|global)\.settings\.yaml$
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.14.0
+    hooks:
+      - id: yamlfmt  # YAML
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.14.0
+    hooks:
+      - id: pretty-format-ini  # Ini
+        args: [--autofix]
+  - repo: https://gitlab.com/bmares/check-json5
+    rev: v1.0.0
+    hooks:
+      - id: check-json5  # json
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint  # Dockerfile
+  - repo: local
+    hooks:
+      - id: my-dotenv-linter  # Dotenv
+        args: [check]
+        name: dotenv-linter
+        pass_filenames: true
+        language: system
+        entry: dotenv-linter
+        files: '^(.*\.env)$'

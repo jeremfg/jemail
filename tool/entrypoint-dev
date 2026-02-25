@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+# shellcheck shell=bash
+# SPDX-License-Identifier: MIT
+#
+# JEMAIL - Dev container entrypoint
+# Installs development-only dependencies for the VS Code dev container.
+
+set -o nounset
+set -o pipefail
+
+############################################
+## Configuration
+############################################
+
+export LOG_CONSOLE=1
+
+############################################
+## Functions
+############################################
+
+bootstrap_external_dependencies() {
+  if ! command -v curl >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y --no-install-recommends curl
+    rm -rf /var/lib/apt/lists/*
+  fi
+
+  if ! command -v bpkg >/dev/null 2>&1; then
+    # shellcheck disable=SC2312
+    if ! curl -sLo- https://get.bpkg.sh | bash; then
+      echo "Failed to install bpkg" >&2
+      return 1
+    fi
+  fi
+
+  if [[ ! -f "${PREFIX}/lib/slf4.sh" ]]; then
+    if ! bpkg install -g jeremfg/slf4.sh; then
+      echo "Failed to install slf4.sh" >&2
+      return 1
+    fi
+  fi
+}
+
+ensure_sudo_compat() {
+  if command -v sudo >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ ${EUID} -eq 0 ]]; then
+    # shellcheck disable=SC2317
+    sudo() {
+      "$@"
+    }
+
+    return 0
+  fi
+
+  echo "sudo is required when not running as root" >&2
+  return 1
+}
+
+import_setup_libraries() {
+  # shellcheck disable=SC1091
+  if ! source "${SETUP_ROOT}/src/python.sh"; then
+    logError "Failed to import setup python library"
+    return 1
+  elif ! source "${SETUP_ROOT}/src/file.sh"; then
+    logError "Failed to import setup file library"
+    return 1
+  fi
+}
+
+install_system_dev_tools() {
+
+  if ! git config diff.sopsdiffer.textconv "sops -d --config /dev/null"; then
+    logError "Failed to configure git for sops"
+    return 1
+  fi
+
+  # Install dotenv-linter (pre-commit)
+  if ! command -v dotenv-linter &>/dev/null; then
+    logInfo "Installing dotenv-linter..."
+    DOTENV_INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/dotenv-linter/dotenv-linter/master/install.sh"
+    DOTENV_INSTALL_CMD="sh -s -- --git \"dotenv-linter/dotenv-linter\" --tag \"v4.0.0\""
+    if ! curl -sSfL "${DOTENV_INSTALL_SCRIPT_URL}" | eval "${DOTENV_INSTALL_CMD}"; then
+      logError "Failed to install dotenv-linter"
+      return 1
+    elif ! file_symlink "${EP_ROOT}/bin/dotenv-linter" "${HOME}/.local/bin/dotenv-linter"; then
+      logError "Failed to symlink dotenv-linter to ${HOME}/.local/bin/dotenv-linter"
+      return 1
+    fi
+  fi
+
+  # Install hadolint (pre-commit)
+  if ! command -v hadolint &>/dev/null; then
+    logInfo "Installing hadolint..."
+    HADOLINT_OS=$(uname -s)
+    HADOLINT_ARCH=$(uname -m)
+    HADOLINT_URL="https://github.com/hadolint/hadolint/releases/latest/download/hadolint-${HADOLINT_OS}-${HADOLINT_ARCH}"
+    if ! curl -Lo "${HOME}/.local/bin/hadolint" "${HADOLINT_URL}"; then
+      logError "Failed to download hadolint"
+      return 1
+    elif ! chmod +x "${HOME}/.local/bin/hadolint"; then
+      logError "Failed to make hadolint executable"
+      return 1
+    fi
+  fi
+
+  pkg_install nodejs npm pre-commit shellcheck
+}
+
+install_dev_dependencies() {
+  local packages=()
+  local line
+
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line%$'\r'}"
+    if [[ -n "${line//[[:space:]]/}" ]]; then
+      packages+=("${line}")
+    fi
+  done <"${EP_ROOT}/requirements-dev.txt"
+
+  if [[ ${#packages[@]} -gt 0 ]]; then
+    pip_install "${packages[@]}"
+  fi
+}
+
+main() {
+  ensure_sudo_compat
+  import_setup_libraries
+  install_system_dev_tools
+  install_dev_dependencies
+  pre-commit install
+}
+
+###########################
+###### Startup logic ######
+###########################
+
+# Get directory of this script
+# https://stackoverflow.com/a/246128
+EP_SOURCE=${BASH_SOURCE[0]}
+while [[ -L "${EP_SOURCE}" ]]; do # resolve $EP_SOURCE until the file is no longer a symlink
+  EP_ROOT=$(cd -P "$(dirname "${EP_SOURCE}")" >/dev/null 2>&1 && pwd)
+  EP_SOURCE=$(readlink "${EP_SOURCE}")
+  [[ ${EP_SOURCE} != /* ]] && EP_SOURCE=${EP_ROOT}/${EP_SOURCE} # if $EP_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+EP_ROOT=$(cd -P "$(dirname "${EP_SOURCE}")" >/dev/null 2>&1 && pwd)
+EP_ROOT=$(realpath "${EP_ROOT}/..")
+
+SETUP_ROOT="${EP_ROOT}/../setup"
+
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX:-}" ]]; then
+  PREFIX="${HOME}/.local"
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  echo "This script cannot be piped" >&2
+  exit 1
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  echo "This script cannot be sourced" >&2
+  exit 1
+else
+  bootstrap_external_dependencies
+  main "$@"
+  exit $?
+fi

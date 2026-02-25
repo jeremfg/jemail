@@ -1,0 +1,5 @@
+---
+# SOPS configuration for Ba'al repository
+# AGE encryption for sensitive configuration files
+creation_rules:
+  - age: age1nfy5zd0yl99ulq4q0tc605pmj780rqzj3z4gyghlda08ppgrhp4qsc7dta

@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "editorconfig.editorconfig",
+    "signageos.signageos-vscode-sops",
+    "yzhang.markdown-all-in-one",
+    "bierner.markdown-preview-github-styles",
+    "ms-vscode-remote.vscode-remote-extensionpack",
+    "ms-azuretools.vscode-containers",
+    "mhutchie.git-graph",
+    "ms-python.python"
+  ]
+}

@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+
+# shellcheck shell=bash
+# SPDX-License-Identifier: MIT
+#
+# JEMAIL - Interactive email management tool
+# Entry point for Docker container management and TUI launching
+
+set -o pipefail
+
+############################################
+## Configuration
+############################################
+
+CONTAINER_NAME="jemail"
+export LOG_CONSOLE=1
+
+############################################
+## Functions
+############################################
+
+# Build Docker image
+jemail_build_image() {
+  logInfo "Building JEMAIL Docker image..."
+  if ! docker build -t "${CONTAINER_NAME}:latest" -f "${JE_ROOT}/build/Dockerfile" "${JE_ROOT}"; then
+    logFatal "Failed to build Docker image"
+  fi
+  logInfo "Image built successfully"
+}
+
+# Start Docker container
+#
+# Returns:
+#   0 if container is running (existing or newly started)
+#   1 on failure
+jemail_start_container() {
+  logTrace "Starting container"
+
+  # Check if container is already running
+  if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
+    logInfo "Container is already running"
+    return 0
+  fi
+
+  # Check if container exists but is stopped
+  if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
+    logInfo "Container is stopped. Restarting..."
+    if ! docker start "${CONTAINER_NAME}"; then
+      logFatal "Failed to restart container"
+    fi
+    return 0
+  fi
+
+  # Container doesn't exist, build image if needed
+  if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${CONTAINER_NAME}:latest\$"; then
+    jemail_build_image
+  fi
+
+  # Create and run container
+  logInfo "Starting container..."
+
+  # Provide AGE key
+  if [[ -z "${SOPS_AGE_KEY_FILE}" ]]; then
+    logError "SOPS_AGE_KEY_FILE environment variable is not set."
+    return 1
+  elif [[ ! -f "${SOPS_AGE_KEY_FILE}" ]]; then
+    logError "SOPS AGE key file not found at ${SOPS_AGE_KEY_FILE}."
+    return 1
+  fi
+
+  if ! docker run -dit \
+    --name "${CONTAINER_NAME}" \
+    -v "${JE_ROOT}:/root/jemail" \
+    -v "${HOME}/.local/share/jemail:/var/lib/jemail" \
+    -v "${SOPS_AGE_KEY_FILE}:/root/.sops/age.txt:ro" \
+    --workdir /root/jemail/external/jemail \
+    "${CONTAINER_NAME}:latest" >/dev/null 2>&1; then
+    logFatal "Failed to start container"
+  fi
+  logInfo "Container started"
+  return 0
+}
+
+# Run JEMAIL TUI in container
+jemail_run() {
+  logTrace "Running JEMAIL"
+  jemail_start_container
+
+  logInfo "Launching JEMAIL TUI..."
+  docker exec -it "${CONTAINER_NAME}" python -m main
+}
+
+# Display version from container
+jemail_version() {
+  logTrace "Getting version from container"
+  jemail_start_container
+
+  logInfo "Retrieving version..."
+  docker exec "${CONTAINER_NAME}" semver
+}
+
+# Stop container
+jemail_stop() {
+  logTrace "Stopping container"
+
+  if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
+    logInfo "Stopping container..."
+    if ! docker stop "${CONTAINER_NAME}" >/dev/null; then
+      logFatal "Failed to stop container"
+    fi
+    logInfo "Container stopped"
+  else
+    logWarn "Container is not running"
+  fi
+}
+
+# Delete container and image
+jemail_delete() {
+  logTrace "Deleting container and image"
+
+  # Stop if running
+  if ! jemail_stop; then
+    logFatal "Failed to stop container before deletion"
+  fi
+
+  # Remove container if exists
+  if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
+    logInfo "Deleting container..."
+    if ! docker rm "${CONTAINER_NAME}" >/dev/null; then
+      logFatal "Failed to delete container"
+    fi
+  fi
+
+  # Remove image
+  if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${CONTAINER_NAME}:latest\$"; then
+    logInfo "Deleting image..."
+    if ! docker rmi "${CONTAINER_NAME}:latest"; then
+      logFatal "Failed to delete image"
+    fi
+  fi
+
+  logInfo "Cleanup complete"
+}
+
+# Print help message
+jemail_help() {
+  cat <<EOF
+JEMAIL - Interactive email management tool
+
+Usage: jemail [COMMAND]
+
+COMMANDS:
+  (none)              Start JEMAIL TUI (default; requires Docker)
+  container stop      Stop the Docker container
+  container delete    Delete the Docker container and image
+  -h, --help          Display this help message
+  -v, --version       Display version information
+
+ENVIRONMENT:
+  PREFIX              Base directory for system libraries (default: ~/.local or /usr/local)
+
+EXAMPLES:
+  jemail                    # Launch TUI
+  jemail container stop     # Stop container
+  jemail container delete   # Clean up Docker resources
+
+EOF
+}
+
+# Parse and dispatch commands
+parse_args() {
+  case "${1:-}" in
+  "container")
+    case "${2:-}" in
+    "stop")
+      jemail_stop
+      ;;
+    "delete")
+      jemail_delete
+      ;;
+    *)
+      logFatal "Unknown container subcommand: ${2:-}"
+      ;;
+    esac
+    ;;
+  "-h" | "--help")
+    jemail_help
+    ;;
+  "-v" | "--version")
+    jemail_version
+    ;;
+  *)
+    # Default: run JEMAIL
+    jemail_run
+    ;;
+  esac
+}
+
+# Main entry point
+main() {
+  parse_args "$@"
+}
+
+###########################
+###### Startup logic ######
+###########################
+
+# Get directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX}" ]]; then
+  if [[ $(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="${HOME}/.local"
+  fi
+fi
+
+# Import dependencies (fail hard if missing)
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/slf4.sh"; then
+  echo "Failed to import slf4.sh from ${PREFIX}/lib/slf4.sh" >&2
+  exit 1
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  # This script was piped
+  logFatal "This script cannot be piped"
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  logFatal "This script cannot be sourced"
+else
+  # This script was executed
+  main "$@"
+  exit $?
+fi

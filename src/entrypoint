@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+# shellcheck shell=bash
+# SPDX-License-Identifier: MIT
+#
+# JEMAIL - Container runtime entrypoint
+# Keeps the container alive for interactive development and execution.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+############################################
+## Functions
+############################################
+
+entrypoint_run() {
+  echo "Starting app..."
+  sleep infinity
+}
+
+main() {
+  entrypoint_run
+}
+
+###########################
+###### Startup logic ######
+###########################
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  echo "This script cannot be piped" >&2
+  exit 1
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  echo "This script cannot be sourced" >&2
+  exit 1
+else
+  main "$@"
+  exit $?
+fi
